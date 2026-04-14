@@ -39,6 +39,14 @@ def _():
 
 @app.cell
 def _():
+    # https://pypi.org/project/CausalInference/
+    from causalinference import CausalModel
+
+    return (CausalModel,)
+
+
+@app.cell
+def _():
     import warnings
     warnings.filterwarnings('ignore')
     return
@@ -201,9 +209,7 @@ def _():
 
 
 @app.cell
-def _(covariates, df):
-    # https://pypi.org/project/CausalInference/
-    from causalinference import CausalModel
+def _(CausalModel, covariates, df):
 
     causal = CausalModel(
         Y=df['re78'].values, 
@@ -215,7 +221,7 @@ def _(covariates, df):
     # This is called a "constant treatment effect"
 
     print(causal.estimates)
-    return CausalModel, causal
+    return (causal,)
 
 
 @app.cell(hide_code=True)
@@ -243,14 +249,14 @@ def _(mo):
     mo.md(r"""
     # More complete approach
     ### Pre-processing phase:
-    assess covariate balance
-    estimate propensity score
-    trim sample
-    stratify sample
+    1. assess covariate balance
+    2. estimate propensity score
+    3. trim sample
+    4. stratify sample
 
     ### Estimation phase:
-    blocking estimator or/and
-    matching estimator
+    1. blocking estimator or/and
+    2. matching estimator
     """)
     return
 
@@ -279,7 +285,6 @@ def _(df):
 @app.cell
 def _(causal):
     print(causal.summary_stats)
-
     return
 
 
@@ -327,7 +332,6 @@ def _(causal):
 
     causal.trim_s()
     print(causal.summary_stats)
-
     return
 
 
@@ -404,87 +408,31 @@ def _():
 
 
 @app.cell
-def _(covariates, df):
-    import statsmodels.api as sm
-    df_X = df[covariates]
-    df_Y = df['re78']
+def _():
+    # import statsmodels.api as sm
+    # df_X = df[covariates]
+    # df_Y = df['re78']
 
-    # Add constant manually just for this test
-    X_test = sm.add_constant(df_X)
-    model = sm.OLS(df_Y, X_test)
-    results = model.fit() 
+    # # Add constant manually just for this test
+    # X_test = sm.add_constant(df_X)
+    # model = sm.OLS(df_Y, X_test)
+    # results = model.fit() 
 
-    # Statsmodels will either:
-    # 1. Drop the offending variable for you
-    # 2. Give you a 'Design Matrix is Singular' error with a list of offending indices.
-    print(results.summary())
-    return (df_X,)
+    # # Statsmodels will either:
+    # # 1. Drop the offending variable for you
+    # # 2. Give you a 'Design Matrix is Singular' error with a list of offending indices.
+    # print(results.summary())
+    return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    The Problem: Variable Scaling
+    **The Problem: Variable Scaling**
     Looking at the variables, there is a massive discrepancy in scales:
     Dummy variables (black, hispan, married): Range from 0 to 1.
     Earnings variables (re74, re75): Range from 0 to tens of thousands.
     """)
-    return
-
-
-@app.cell
-def _(CausalModel, df, df_X):
-    from sklearn.preprocessing import StandardScaler
-
-    # List of continuous variables that have large scales
-    continuous_vars = ['age', 'educ', 're74', 're75']
-
-    # Initialize scaler
-    scaler = StandardScaler()
-
-    # Create a copy of your dataframe to keep it clean
-    X_scaled = df_X.copy()
-
-    # Scale only the continuous variables
-    X_scaled[continuous_vars] = scaler.fit_transform(X_scaled[continuous_vars])
-
-    # Now run the causal model with X_scaled
-    causal_norm = CausalModel(
-        Y=df['re78'].values, 
-        D=df['treat'].values, 
-        X=X_scaled.values)
-    return (causal_norm,)
-
-
-@app.cell
-def _(causal_norm):
-    causal_norm.est_propensity_s()
-    print(causal_norm.propensity)
-    return
-
-
-@app.cell
-def _():
-    # causal_norm.trim_s()
-    # print(causal_norm.summary_stats)
-
-    # This is what is causing the Singular Matrix error for causal_norm
-    return
-
-
-@app.cell
-def _(causal_norm):
-    causal_norm.stratify_s()
-    print(causal_norm.strata)
-
-    return
-
-
-@app.cell
-def _(causal_norm):
-    causal_norm.est_via_blocking()
-    print(causal_norm.estimates)
-
     return
 
 
@@ -512,7 +460,76 @@ def _(causal):
     # allowing several matches
     causal.est_via_matching(bias_adj=True, matches=4)
     print(causal.estimates)
+    return
 
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Exploring Normalization
+    """)
+    return
+
+
+@app.cell
+def _(CausalModel, covariates, df):
+    from sklearn.preprocessing import StandardScaler
+
+    df_X = df[covariates]
+
+    # List of continuous variables that have large scales
+    continuous_vars = ['age', 'educ', 're74', 're75']
+
+    # Initialize scaler
+    scaler = StandardScaler()
+
+    # Create a copy of your dataframe to keep it clean
+    X_scaled = df_X.copy()
+
+    # Scale only the continuous variables
+    X_scaled[continuous_vars] = scaler.fit_transform(X_scaled[continuous_vars])
+
+    # Now run the causal model with X_scaled
+    causal_norm = CausalModel(
+        Y=df['re78'].values, 
+        D=df['treat'].values, 
+        X=X_scaled.values)
+    return (causal_norm,)
+
+
+@app.cell
+def _(causal_norm):
+    print(causal_norm.summary_stats)
+    return
+
+
+@app.cell
+def _(causal_norm):
+    causal_norm.est_propensity_s()
+    print(causal_norm.propensity)
+    return
+
+
+@app.cell
+def _():
+    # causal_norm.trim_s()
+    # print(causal_norm.summary_stats)
+
+    # This is what is causing the Singular Matrix error for causal_norm
+    return
+
+
+@app.cell
+def _(causal_norm):
+    causal_norm.stratify_s()
+    print(causal_norm.strata)
+    return
+
+
+@app.cell
+def _(causal_norm):
+    causal_norm.est_via_blocking()
+    print(causal_norm.estimates)
     return
 
 
@@ -530,12 +547,14 @@ def _(causal_norm):
     # allowing several matches
     causal_norm.est_via_matching(bias_adj=True, matches=4)
     print(causal_norm.estimates)
-
     return
 
 
-@app.cell
-def _():
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Conclusions
+    """)
     return
 
 
